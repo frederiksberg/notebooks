@@ -11,20 +11,21 @@ ogr2ogr -f PostgreSQL PG:"dbname=xx host=xx port=xx user=xx password=xx" WFS:"ht
 Lav tabel i databasen til at indsætte planid, status og tilhørende dokumenttekst
 ```sql
 # Lav skema og tabel
-create schema proj_lokalplan_dokument;
+create schema elasticsearch;
 
-create table proj_lokalplan_dokument.lokalplan_dokument (
+create table elasticsearch.lokalplan_dokument (
 	gid serial primary key not null,
 	planid int4,
-	plantype varchar,
+	plannavn varchar,
+	status varchar,
 	document text
 )
 
 ## indsæt plandata ind i lokalplan_dokument
-insert into proj_lokalplan_dokument.lokalplan_dokument(PLANID, PLANSTATUS)
-SELECT PLANID, STATUS
-FROM proj_lokalplan_dokument.lokalplan
-where STATUS in ('V', 'F') and AKTUEL = TRUE
+insert into elasticsearch.lokalplan_dokument(planid, plannavn, status)
+SELECT planid, plannavn, status
+FROM job_plandatadk.lokalplan
+where STATUS in ('V', 'F') and AKTUEL = true and komnr = 147 and doklink is not null;
 ```
 
 ## 2. Hent plandoukmenter
