@@ -7,74 +7,45 @@ import logging
 import textract
 import PyPDF2
 import os
-sys.path.append('/Users/andersbarfod/Documents/python/')
 import connections as con
+from functools import reduce
+dir_path = os.path.dirname(os.path.realpath(__file__))
 
 logging.basicConfig(filename='logfile.log', filemode='w')
 
-def download_pdf(url, folder):
-    """
-    Download pdf from url to folder
-    """
+def download_document(url):
     try:
         r = requests.get(url)
     except Exception as e:
         print(e)
-        logging.warning(e)
+
     pdf_name = url.split('/')[-1]
-    path = folder + pdf_name
+    path = dir_path + pdf_name
     with open(path, 'wb') as file:
         file.write(r.content)
-    return pdf_name
+    return path
 
-def get_document(url, temp_folder='./', language='dan'):
-    """
-    Get pdf documents from URL and extract the text. 
-    If the pdf doesn't contain text textract is used to 
-    OCR scan the document, which entails temporary downloads of pdf's.
-    The function uses logging of exceptions, so make sure to setop logging basic config.
-    
-    logging.basicConfig(filename='logfile.log', filemode='w')
-    """
-    try:
-        r = requests.get(url)
-    except Exception as e:
-        print(e)
-        logging.warning(e)
+
+def process_document(url):
+
+    pdf_path = download_document(url)
+
     # Convert to in-memory binary streams and read pdf
-    pdf_file = io.BytesIO(r.content)
-    pdfReader = PyPDF2.PdfFileReader(pdf_file, strict=False)
+    with open(f'{pdf_path}.pdf', "rb") as file:
+        pdfReader = PyPDF2.PdfFileReader(file,strict = True)
 
-    # Discerning the number of pages will allow us to parse through all the pages
-    num_pages = pdfReader.numPages
-    count = 0
-    text = ""
-    # The while loop will read each page
-    while count < num_pages:
-        try:
-            pageObj = pdfReader.getPage(count)
-            count +=1
-            text += pageObj.extractText()
-        except Exception as e:
-            logging.warning(e)
-            print(e, url)
-    #If the below returns as False, we run the OCR library textract to 
-    # convert scanned/image based PDF files into text         
-    if text != "":
-        text = text
-    else:
-        try:
-            # Download pdf to disk in order to use textract (might be possible to do in-memory)
-            filename = download_pdf(url, temp_folder)
-            text = textract.process(temp_folder + filename, method='tesseract', language=language)
-            text = text.decode('utf-8')
-            if os.path.exists(filename):
-                os.remove(filename)
-        except Exception as e:
-            logging.warning(e)
-            print(e, url)
+        pdf_pages = map(lambda x: pdfReader.getPage(x).extractText(),range(pdfReader.numPages))
+        pdf_text = reduce(lambda a,b: a + b, pdf_pages,'')
 
-    return text
+        return pdf_text if pdf_text else textract_document(pdf_path)
+    
+    os.remove(f'{pdf_path}.pdf')
+
+       
+
+def textract_document(pdf_path,language='dan'):
+    pdf_text = textract.process(f'{pdf_path}', method='tesseract', language=language)
+    return pdf_text.decode('utf-8')
 
 def update_table(plan):
     sql = '''
@@ -88,7 +59,7 @@ def update_table(plan):
                 planid = r['planid'],
                 plannavn = r['plannavn'],
                 status = r['ny_status'],
-                document = get_document(r['doklink'])
+                document = process_document(r['doklink'])
             )
             plan_insert = plan.insert().values(val)
             engine.execute(plan_insert)
@@ -96,7 +67,7 @@ def update_table(plan):
         elif r['handling'] == 'UPDATE':
             val = dict(
                 plannavn = r['plannavn'],
-                document = get_document(r['doklink']), 
+                document = process_document(r['doklink']), 
                 status = r['ny_status']
             )
             plan_update = plan.update().values(val).where(plan.c.planid == r['planid'])
