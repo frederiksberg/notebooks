@@ -29,6 +29,7 @@ def download_document(url):
 def process_document(url):
 
     pdf_path = download_document(url)
+    pdf_text = None
 
     # Convert to in-memory binary streams and read pdf
     with open(f'{pdf_path}.pdf', "rb") as file:
@@ -36,10 +37,9 @@ def process_document(url):
 
         pdf_pages = map(lambda x: pdfReader.getPage(x).extractText(),range(pdfReader.numPages))
         pdf_text = reduce(lambda a,b: a + b, pdf_pages,'')
-
-        return pdf_text if pdf_text else textract_document(pdf_path)
-    
+        
     os.remove(f'{pdf_path}.pdf')
+    return pdf_text if pdf_text else textract_document(pdf_path)
 
        
 
